@@ -54,9 +54,15 @@
   .grupo > span { font-size: .75rem; color: var(--muted); margin-right: 2px; }
   .opt { font-size: .82rem; padding: 5px 10px; border-radius: 999px; background: transparent; border: 1.5px solid var(--line); color: var(--muted); }
   .opt[aria-pressed=true] { border-color: currentColor; font-weight: 600; }
-  .opt.p1[aria-pressed=true] { color: var(--p1); background: var(--p1-bg); }
-  .opt.p2[aria-pressed=true] { color: var(--p2); background: var(--p2-bg); }
-  .opt.p3[aria-pressed=true] { color: var(--p3); background: var(--p3-bg); }
+  /* Desplegable de prioridad (formulario y cada producto) */
+  .sel { position: relative; display: inline-flex; flex: none; color: var(--c); }
+  .sel::after { content: "▾"; position: absolute; right: 9px; top: 50%; transform: translateY(-52%);
+    font-size: .7rem; pointer-events: none; }
+  .sel select { appearance: none; -webkit-appearance: none; font: inherit; font-weight: 600; color: inherit;
+    background: var(--cbg); border: 1.5px solid transparent; border-radius: 999px; cursor: pointer; }
+  .sel select:focus-visible { outline: none; border-color: currentColor; }
+  .sel select option { color: var(--ink); background: var(--card); }
+  .opciones .sel select { font-size: .82rem; padding: 5px 24px 5px 11px; }
   .opt.sec[aria-pressed=true] { color: var(--accent); }
 
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
@@ -80,7 +86,7 @@
   .nombre { flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 10px 0; }
   .nombre small { display: block; font-size: .72rem; color: var(--muted); margin-top: 1px; }
   li.ok .nombre { color: var(--done); text-decoration: line-through; }
-  .prio { flex: none; font-size: .72rem; font-weight: 600; padding: 4px 8px; border-radius: 999px; color: var(--c); background: var(--cbg); }
+  li .sel select { font-size: .72rem; padding: 5px 22px 5px 9px; }
   .borrar { background: transparent; color: var(--muted); width: 38px; height: 40px; font-size: 1.3rem; line-height: 1; flex: none; }
   .vacio { color: var(--muted); text-align: center; padding: 28px 12px; font-size: .95rem; justify-content: center; border-left: 0; }
   .enlace { background: transparent; color: var(--accent); font-size: .8rem; padding: 4px 0; font-weight: 600; text-transform: none; letter-spacing: 0; }
@@ -106,7 +112,7 @@
     </form>
     <div class="opciones">
       <div class="grupo" id="grupoSec" hidden><span>Lista</span></div>
-      <div class="grupo" id="grupoPrio"><span>Prioridad</span></div>
+      <div class="grupo"><span>Prioridad</span><span id="prioForm"></span></div>
     </div>
   </div>
   <div class="chips" id="sugerencias"></div>
@@ -118,7 +124,7 @@
     <ul id="hechos"></ul>
   </section>
 
-  <p class="ayuda">Toca la etiqueta de prioridad de un producto para cambiarla.</p>
+  <p class="ayuda">Para cambiar la prioridad de un producto, toca su etiqueta de color.</p>
   <footer><button class="secundario" id="compartir">Compartir enlace con la familia</button></footer>
 </main>
 
@@ -220,7 +226,22 @@ function agregar(texto, sec = vista === "todo" ? secNueva : vista, prio = prioNu
 }
 const marcar = (id, ok) => tienda.cambiar({ ["items/" + id + "/ok"]: ok, ["items/" + id + "/t"]: Date.now() });
 const quitar = (id) => tienda.cambiar({ ["items/" + id]: null });
-const ciclarPrio = (id, it) => tienda.cambiar({ ["items/" + id + "/p"]: (prioDe(it) % 3) + 1 });
+const cambiarPrio = (id, p) => tienda.cambiar({ ["items/" + id + "/p"]: p });
+
+// Desplegable de prioridad con el color del nivel elegido.
+function selectorPrio(valor, alCambiar, etiqueta) {
+  const s = nuevo("select", {}, ...Object.entries(PRIORIDADES).map(([p, d]) =>
+    nuevo("option", { value: p, selected: Number(p) === valor }, d.nombre)));
+  s.setAttribute("aria-label", etiqueta);
+  const caja = nuevo("span", { className: "sel" }, s);
+  const colorear = () => {
+    caja.style.setProperty("--c", PRIORIDADES[s.value].c);
+    caja.style.setProperty("--cbg", PRIORIDADES[s.value].bg);
+  };
+  colorear();
+  s.onchange = () => { colorear(); alCambiar(Number(s.value)); };
+  return caja;
+}
 function limpiar() {
   const rutas = {};
   for (const [id, it] of Object.entries(datos.items || {}))
@@ -246,9 +267,7 @@ function fila(id, it) {
   if (vista === "todo") n.append(nuevo("small", {}, SECCIONES[secDe(it)].nombre));
   li.append(c, n);
   if (!it.ok) {
-    const b = nuevo("button", { className: "prio", onclick: () => ciclarPrio(id, it) }, p.nombre);
-    b.setAttribute("aria-label", "Prioridad " + p.nombre + ". Tocar para cambiar");
-    li.append(b);
+    li.append(selectorPrio(prioDe(it), (np) => cambiarPrio(id, np), "Prioridad de " + it.n));
   }
   const x = nuevo("button", { className: "borrar", onclick: () => quitar(id) }, "×");
   x.setAttribute("aria-label", "Eliminar " + it.n);
@@ -275,12 +294,12 @@ function pintarControles(items) {
       b.setAttribute("aria-pressed", secNueva === s);
       return b;
     }));
-  $("grupoPrio").replaceChildren($("grupoPrio").firstElementChild,
-    ...Object.entries(PRIORIDADES).map(([p, d]) => {
-      const b = nuevo("button", { type: "button", className: "opt p" + p, onclick: () => { prioNueva = Number(p); pintar(); } }, d.nombre);
-      b.setAttribute("aria-pressed", prioNueva === Number(p));
-      return b;
-    }));
+}
+
+// Cada producto nuevo arranca en Normal; tras añadirlo el desplegable vuelve a Normal.
+function reiniciarPrioForm() {
+  prioNueva = 2;
+  $("prioForm").replaceChildren(selectorPrio(2, (p) => { prioNueva = p; }, "Prioridad del producto nuevo"));
 }
 
 function pintar() {
@@ -320,7 +339,14 @@ function pintar() {
 }
 
 // ---- Inicio ----
-$("form").onsubmit = (e) => { e.preventDefault(); agregar($("entrada").value); $("entrada").value = ""; $("entrada").focus(); };
+$("form").onsubmit = (e) => {
+  e.preventDefault();
+  agregar($("entrada").value);
+  $("entrada").value = "";
+  reiniciarPrioForm();
+  $("entrada").focus();
+};
+reiniciarPrioForm();
 $("limpiar").onclick = limpiar;
 $("compartir").onclick = async () => {
   const clave = leerClave();
