@@ -1,6 +1,8 @@
 // Configuración de Firebase (Realtime Database).
 // Mientras FIREBASE_CONFIG sea null, la página funciona en "modo local":
 // la lista se guarda solo en el celular que la abre.
-// Pega aquí el objeto firebaseConfig que te da la consola de Firebase
-// (Configuración del proyecto → Tus apps → Web). Estos valores NO son secretos.
-window.FIREBASE_CONFIG = null;
+// Para Realtime Database sin inicio de sesión basta con databaseURL.
+window.FIREBASE_CONFIG = {
+  databaseURL: "https://compras-98812-default-rtdb.firebaseio.com",
+  projectId: "compras-98812",
+};
