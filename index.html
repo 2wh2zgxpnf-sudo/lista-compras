@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6b4f">
+<title>Lista de compras</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1f2421; --muted: #6b716d;
+    --line: #e4e0d8; --accent: #2f6b4f; --accent-ink: #ffffff; --chip: #ebe7de;
+    --done: #a3a8a4; --warn-bg: #fff4d6; --warn-ink: #6b5200;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141715; --card: #1d211f; --ink: #eef0ee; --muted: #9aa19c;
+      --line: #2c322f; --accent: #5fb38a; --accent-ink: #0d1510; --chip: #262b28;
+      --done: #626964; --warn-bg: #3a3112; --warn-ink: #f1d98a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px calc(40px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
+  .estado { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--done); }
+  .punto.ok { background: var(--accent); }
+  .aviso { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px;
+    padding: 10px 12px; font-size: .85rem; margin-top: 14px; }
+  form { display: flex; gap: 8px; margin-top: 18px; position: sticky; top: 0; padding: 8px 0; background: var(--bg); z-index: 2; }
+  input[type=text] { flex: 1; min-width: 0; font: inherit; padding: 13px 14px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: var(--card); color: var(--ink); }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 12px; }
+  .agregar { background: var(--accent); color: var(--accent-ink); padding: 0 18px; font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+  .chip { background: var(--chip); color: var(--ink); padding: 7px 12px; border-radius: 999px; font-size: .9rem; }
+  .chip::before { content: "+ "; color: var(--muted); }
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    margin: 22px 0 8px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  ul { list-style: none; margin: 0; padding: 0; background: var(--card); border-radius: 14px; border: 1px solid var(--line); overflow: hidden; }
+  li { display: flex; align-items: center; gap: 12px; padding: 4px 6px 4px 14px; border-top: 1px solid var(--line); min-height: 52px; }
+  li:first-child { border-top: 0; }
+  .check { width: 26px; height: 26px; flex: none; border-radius: 8px; border: 2px solid var(--line);
+    background: transparent; display: grid; place-items: center; padding: 0; }
+  li.ok .check { background: var(--accent); border-color: var(--accent); }
+  li.ok .check::after { content: ""; width: 7px; height: 12px; border: solid var(--accent-ink);
+    border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
+  .nombre { flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 10px 0; }
+  li.ok .nombre { color: var(--done); text-decoration: line-through; }
+  .borrar { background: transparent; color: var(--muted); width: 40px; height: 40px; font-size: 1.3rem; line-height: 1; }
+  .vacio { color: var(--muted); text-align: center; padding: 28px 12px; font-size: .95rem; }
+  .enlace { background: transparent; color: var(--accent); font-size: .8rem; padding: 4px 0; font-weight: 600;
+    text-transform: none; letter-spacing: 0; }
+  footer { margin-top: 28px; display: flex; justify-content: center; }
+  .secundario { background: var(--chip); color: var(--ink); padding: 10px 16px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🛒 Lista de compras</h1>
+    <span class="estado"><span class="punto" id="punto"></span><span id="estado">Cargando…</span></span>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+
+  <form id="form" autocomplete="off">
+    <input type="text" id="entrada" placeholder="Añadir… (ej. 2 leches)" enterkeyhint="done" aria-label="Producto">
+    <button class="agregar" type="submit">Añadir</button>
+  </form>
+  <div class="chips" id="sugerencias"></div>
+
+  <h2><span>Por comprar <span id="nPend"></span></span></h2>
+  <ul id="pendientes"></ul>
+
+  <section id="secHechos" hidden>
+    <h2><span>En el carrito</span><button class="enlace" id="limpiar">Borrar comprados</button></h2>
+    <ul id="hechos"></ul>
+  </section>
+
+  <footer><button class="secundario" id="compartir">Compartir enlace con la familia</button></footer>
+</main>
+
+<script src="config.js"></script>
+<script type="module">
+const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
+const $ = (id) => document.getElementById(id);
+const normal = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[.#$\[\]\/]/g, "_").trim();
+const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+// La clave de la lista viaja en el enlace del NFC (#k=...) y nunca está en el repositorio.
+function leerClave() {
+  const m = location.hash.match(/k=([A-Za-z0-9_-]{20,})/);
+  try {
+    if (m) { localStorage.setItem("clave", m[1]); return m[1]; }
+    return localStorage.getItem("clave");
+  } catch { return m ? m[1] : null; }
+}
+
+let datos = { items: {}, hist: {} };
+let tienda;
+
+// ---- Almacenamiento: Firebase (compartido) o local (solo este celular) ----
+async function tiendaFirebase(clave) {
+  const { initializeApp } = await import(FB + "firebase-app.js");
+  const d = await import(FB + "firebase-database.js");
+  const db = d.getDatabase(initializeApp(window.FIREBASE_CONFIG));
+  const base = d.ref(db, "listas/" + clave);
+  d.onValue(d.ref(db, ".info/connected"), (s) => conectado(s.val() === true));
+  return {
+    escuchar: (cb) => d.onValue(base, (s) => cb(s.val() || {}), (e) => error(e)),
+    cambiar: (rutas) => d.update(base, rutas).catch(error),
+    sumar: () => d.increment(1),
+  };
+}
+
+function tiendaLocal() {
+  let cb = () => {};
+  const leer = () => { try { return JSON.parse(localStorage.getItem("lista-local")) || {}; } catch { return {}; } };
+  let estado = leer();
+  return {
+    escuchar: (f) => { cb = f; f(estado); },
+    cambiar: (rutas) => {
+      for (const [ruta, valor] of Object.entries(rutas)) {
+        const partes = ruta.split("/"); let o = estado;
+        for (const p of partes.slice(0, -1)) o = o[p] ??= {};
+        const ult = partes.at(-1);
+        if (valor === null) delete o[ult];
+        else if (valor && valor.__sumar) o[ult] = (o[ult] || 0) + 1;
+        else o[ult] = valor;
+      }
+      try { localStorage.setItem("lista-local", JSON.stringify(estado)); } catch {}
+      cb(estado);
+    },
+    sumar: () => ({ __sumar: true }),
+  };
+}
+
+function conectado(ok) {
+  $("punto").classList.toggle("ok", ok);
+  $("estado").textContent = ok ? "Sincronizada" : "Sin conexión";
+}
+function error(e) {
+  avisar("No se pudo sincronizar: " + (e?.message || e));
+}
+function avisar(txt) { $("aviso").textContent = txt; $("aviso").hidden = false; }
+
+// ---- Acciones ----
+function agregar(texto) {
+  texto = texto.trim().replace(/\s+/g, " ");
+  if (!texto) return;
+  const nombre = texto[0].toUpperCase() + texto.slice(1);
+  const clave = normal(nombre.replace(/^\d+\s*/, ""));
+  const ya = Object.entries(datos.items || {}).find(([, it]) => !it.ok && normal(it.n) === normal(nombre));
+  if (ya) return;
+  tienda.cambiar({
+    ["items/" + nuevoId()]: { n: nombre, ok: false, t: Date.now() },
+    ["hist/" + clave + "/n"]: nombre.replace(/^\d+\s*/, ""),
+    ["hist/" + clave + "/c"]: tienda.sumar(),
+  });
+}
+const marcar = (id, ok) => tienda.cambiar({ ["items/" + id + "/ok"]: ok, ["items/" + id + "/t"]: Date.now() });
+const quitar = (id) => tienda.cambiar({ ["items/" + id]: null });
+function limpiar() {
+  const rutas = {};
+  for (const [id, it] of Object.entries(datos.items || {})) if (it.ok) rutas["items/" + id] = null;
+  tienda.cambiar(rutas);
+}
+
+// ---- Pintar ----
+function fila(id, it) {
+  const li = document.createElement("li");
+  if (it.ok) li.className = "ok";
+  const c = document.createElement("button");
+  c.className = "check"; c.setAttribute("aria-label", it.ok ? "Desmarcar" : "Marcar como comprado");
+  c.onclick = () => marcar(id, !it.ok);
+  const n = document.createElement("span");
+  n.className = "nombre"; n.textContent = it.n; n.onclick = c.onclick;
+  const b = document.createElement("button");
+  b.className = "borrar"; b.textContent = "×"; b.setAttribute("aria-label", "Eliminar " + it.n);
+  b.onclick = () => quitar(id);
+  li.append(c, n, b);
+  return li;
+}
+
+function pintar() {
+  const items = Object.entries(datos.items || {});
+  const pend = items.filter(([, i]) => !i.ok).sort((a, b) => a[1].t - b[1].t);
+  const hechos = items.filter(([, i]) => i.ok).sort((a, b) => b[1].t - a[1].t);
+
+  $("pendientes").replaceChildren(...pend.map(([id, it]) => fila(id, it)));
+  if (!pend.length) {
+    const li = document.createElement("li"); li.className = "vacio";
+    li.textContent = "Nada pendiente. Añade lo que haga falta en casa.";
+    $("pendientes").append(li);
+  }
+  $("nPend").textContent = pend.length ? `· ${pend.length}` : "";
+  $("hechos").replaceChildren(...hechos.map(([id, it]) => fila(id, it)));
+  $("secHechos").hidden = !hechos.length;
+
+  const pendNorm = new Set(pend.map(([, i]) => normal(i.n.replace(/^\d+\s*/, ""))));
+  const sug = Object.entries(datos.hist || {})
+    .filter(([k]) => !pendNorm.has(k))
+    .sort((a, b) => (b[1].c || 0) - (a[1].c || 0)).slice(0, 12);
+  $("sugerencias").replaceChildren(...sug.map(([, h]) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = h.n; b.onclick = () => agregar(h.n);
+    return b;
+  }));
+}
+
+// ---- Inicio ----
+$("form").onsubmit = (e) => { e.preventDefault(); agregar($("entrada").value); $("entrada").value = ""; $("entrada").focus(); };
+$("limpiar").onclick = limpiar;
+$("compartir").onclick = async () => {
+  const clave = leerClave();
+  const url = location.origin + location.pathname + (clave ? "#k=" + clave : "");
+  try {
+    if (navigator.share) await navigator.share({ title: "Lista de compras", url });
+    else { await navigator.clipboard.writeText(url); avisar("Enlace copiado."); }
+  } catch {}
+};
+
+const clave = leerClave();
+if (window.FIREBASE_CONFIG && clave) {
+  try { tienda = await tiendaFirebase(clave); }
+  catch (e) { tienda = tiendaLocal(); avisar("No se pudo conectar con la nube; usando modo local."); }
+} else {
+  tienda = tiendaLocal();
+  $("estado").textContent = "Solo este celular";
+  avisar(window.FIREBASE_CONFIG
+    ? "Abre la lista desde el NFC o el enlace compartido para ver la lista de la casa."
+    : "Modo local: la lista se guarda solo en este celular hasta conectar la base de datos.");
+}
+tienda.escuchar((v) => { datos = v; pintar(); });
+</script>
+</body>
+</html>

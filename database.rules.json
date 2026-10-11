@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "listas": {
+      "$clave": {
+        ".read": "$clave.length >= 20",
+        ".write": "$clave.length >= 20"
+      }
+    }
+  }
+}
